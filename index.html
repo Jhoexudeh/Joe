@@ -1184,7 +1184,136 @@ function removeTyping(id) {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────
-(function init() {
+
+  // ─── VOICE & SPEECH ENGINE ────────────────────────────────────────
+let recognition = null;
+let currentUtterance = null;
+let isVoiceActive = false;
+
+// Initialize Web Speech API Recognition
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onstart = () => {
+    document.getElementById('voiceStatus').textContent = "Listening...";
+    document.getElementById('voiceOrb').classList.add('active');
+    document.getElementById('micBtn').classList.add('recording');
+  };
+
+  recognition.onresult = (event) => {
+    let interimTranscript = '';
+    let finalTranscript = '';
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript;
+      } else {
+        interimTranscript += event.results[i][0].transcript;
+      }
+    }
+
+    const transcript = finalTranscript || interimTranscript;
+    if (transcript) {
+      document.getElementById('voiceTranscript').textContent = transcript;
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Speech Recognition Error", event.error);
+    document.getElementById('voiceStatus').textContent = "Error occurred";
+    document.getElementById('voiceTranscript').textContent = "Could not detect audio. Check microphone permissions.";
+    stopRecordingState();
+  };
+
+  recognition.onend = () => {
+    const finalText = document.getElementById('voiceTranscript').textContent;
+    stopRecordingState();
+    
+    // If they spoke actual words and didn't hit cancel, send it!
+    if (finalText && finalText !== "Start speaking — I'm all ears." && isVoiceActive) {
+      cancelVoice(); // close overlay
+      sendMessage(finalText);
+    }
+  };
+}
+
+function toggleVoice() {
+  if (!recognition) {
+    alert("Speech recognition is not supported or permitted in this browser version.");
+    return;
+  }
+  
+  // Stop any active speaking before opening mic
+  window.speechSynthesis.cancel();
+  
+  isVoiceActive = true;
+  document.getElementById('voiceOverlay').classList.add('active');
+  document.getElementById('voiceTranscript').textContent = "Start speaking — I'm all ears.";
+  
+  try {
+    recognition.start();
+  } catch(e) {
+    console.log("Recognition already active", e);
+  }
+}
+
+function stopRecording() {
+  if (recognition) {
+    recognition.stop();
+  }
+}
+
+function stopRecordingState() {
+  document.getElementById('voiceOrb').classList.remove('active');
+  document.getElementById('micBtn').classList.remove('recording');
+}
+
+function cancelVoice() {
+  isVoiceActive = false;
+  if (recognition) {
+    recognition.abort();
+  }
+  stopRecordingState();
+  document.getElementById('voiceOverlay').classList.remove('active');
+}
+
+// Text-to-Speech Engine for the response speech bubbles
+function toggleSpeak(text, buttonElement) {
+  // If already speaking this, turn it off
+  if (buttonElement.classList.contains('speaking')) {
+    window.speechSynthesis.cancel();
+    buttonElement.classList.remove('speaking');
+    buttonElement.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Speak`;
+    return;
+  }
+
+  // Clear any existing voice streams
+  window.speechSynthesis.cancel();
+  document.querySelectorAll('.speak-btn').forEach(btn => {
+    btn.classList.remove('speaking');
+    btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Speak`;
+  });
+
+  // Strip html markup tags before reading aloud
+  const cleanText = text.replace(/<\/?[^>]+(>|$)/g, "");
+  
+  currentUtterance = new SpeechSynthesisUtterance(cleanText);
+  currentUtterance.rate = 1.05; // Quick, energetic pace matching Jo's brand persona
+  
+  buttonElement.classList.add('speaking');
+  buttonElement.innerHTML = `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`;
+
+  currentUtterance.onend = () => {
+    buttonElement.classList.remove('speaking');
+    buttonElement.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Speak`;
+  };
+
+  window.speechSynthesis.speak(currentUtterance);
+}(function init() {
   loadSessions();
   const lastActive = loadActive();
   if (lastActive && sessions[lastActive]) {
