@@ -1068,7 +1068,6 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 160) + 'px';
 }
 
-// Fixed Key handler
 function handleKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { 
     e.preventDefault(); 
@@ -1121,12 +1120,10 @@ async function sendMessage(text) {
   document.getElementById('sendBtn').disabled = true;
 
   try {
-    // ⚠️ LOCAL TESTING EMULATOR MOCK
     await new Promise(resolve => setTimeout(resolve, 1200)); 
-    
     removeTyping(typingId);
     
-    const mockReply = "Diagnostic Engine operational! Your interface functions perfectly and your sessions are saving correctly. To get real strategic insights directly from Claude, link this to your Next.js backend API layout route.";
+    const mockReply = "Diagnostic Engine operational! Your interface functions perfectly and your sessions are saving correctly. To get real strategic insights directly from Claude, link this to your Next.js backend API route.";
     
     conversationHistory.push({ role: 'assistant', content: mockReply });
     sessions[activeSessionId].messages = [...conversationHistory];
@@ -1147,6 +1144,7 @@ async function sendMessage(text) {
 function appendMessage(role, text) {
   const msgs = document.getElementById('messages');
   if (!msgs) return;
+  
   const row = document.createElement('div');
   row.className = `message-row ${role}`;
 
@@ -1154,12 +1152,25 @@ function appendMessage(role, text) {
   avatar.className = `msg-avatar ${role}`;
   avatar.textContent = role === 'jo' ? 'JO' : 'YOU';
 
+  const msgContent = document.createElement('div');
+  msgContent.style.display = 'flex';
+  msgContent.style.flexDirection = 'column';
+
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
   bubble.innerHTML = text;
+  msgContent.appendChild(bubble);
+
+  if (role === 'jo') {
+    const speakBtn = document.createElement('button');
+    speakBtn.className = 'speak-btn';
+    speakBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Speak`;
+    speakBtn.onclick = function() { toggleSpeak(text, speakBtn); };
+    msgContent.appendChild(speakBtn);
+  }
 
   row.appendChild(avatar);
-  row.appendChild(bubble);
+  row.appendChild(msgContent);
   msgs.appendChild(row);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1183,14 +1194,11 @@ function removeTyping(id) {
   if (el) el.remove();
 }
 
-// ─── INIT ─────────────────────────────────────────────────────────
-
-  // ─── VOICE & SPEECH ENGINE ────────────────────────────────────────
+// ─── VOICE & SPEECH ENGINE ────────────────────────────────────────
 let recognition = null;
 let currentUtterance = null;
 let isVoiceActive = false;
 
-// Initialize Web Speech API Recognition
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
@@ -1207,15 +1215,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   recognition.onresult = (event) => {
     let interimTranscript = '';
     let finalTranscript = '';
-
     for (let i = event.resultIndex; i < event.results.length; ++i) {
-      if (event.results[i].isFinal) {
-        finalTranscript += event.results[i][0].transcript;
-      } else {
-        interimTranscript += event.results[i][0].transcript;
-      }
+      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+      else interimTranscript += event.results[i][0].transcript;
     }
-
     const transcript = finalTranscript || interimTranscript;
     if (transcript) {
       document.getElementById('voiceTranscript').textContent = transcript;
@@ -1225,17 +1228,15 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   recognition.onerror = (event) => {
     console.error("Speech Recognition Error", event.error);
     document.getElementById('voiceStatus').textContent = "Error occurred";
-    document.getElementById('voiceTranscript').textContent = "Could not detect audio. Check microphone permissions.";
+    document.getElementById('voiceTranscript').textContent = "Could not detect audio. Verify microphone permissions.";
     stopRecordingState();
   };
 
   recognition.onend = () => {
     const finalText = document.getElementById('voiceTranscript').textContent;
     stopRecordingState();
-    
-    // If they spoke actual words and didn't hit cancel, send it!
     if (finalText && finalText !== "Start speaking — I'm all ears." && isVoiceActive) {
-      cancelVoice(); // close overlay
+      cancelVoice();
       sendMessage(finalText);
     }
   };
@@ -1243,28 +1244,18 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
 function toggleVoice() {
   if (!recognition) {
-    alert("Speech recognition is not supported or permitted in this browser version.");
+    alert("Speech recognition is not fully supported in this browser version.");
     return;
   }
-  
-  // Stop any active speaking before opening mic
   window.speechSynthesis.cancel();
-  
   isVoiceActive = true;
   document.getElementById('voiceOverlay').classList.add('active');
   document.getElementById('voiceTranscript').textContent = "Start speaking — I'm all ears.";
-  
-  try {
-    recognition.start();
-  } catch(e) {
-    console.log("Recognition already active", e);
-  }
+  try { recognition.start(); } catch(e){}
 }
 
 function stopRecording() {
-  if (recognition) {
-    recognition.stop();
-  }
+  if (recognition) recognition.stop();
 }
 
 function stopRecordingState() {
@@ -1274,16 +1265,12 @@ function stopRecordingState() {
 
 function cancelVoice() {
   isVoiceActive = false;
-  if (recognition) {
-    recognition.abort();
-  }
+  if (recognition) recognition.abort();
   stopRecordingState();
   document.getElementById('voiceOverlay').classList.remove('active');
 }
 
-// Text-to-Speech Engine for the response speech bubbles
 function toggleSpeak(text, buttonElement) {
-  // If already speaking this, turn it off
   if (buttonElement.classList.contains('speaking')) {
     window.speechSynthesis.cancel();
     buttonElement.classList.remove('speaking');
@@ -1291,18 +1278,15 @@ function toggleSpeak(text, buttonElement) {
     return;
   }
 
-  // Clear any existing voice streams
   window.speechSynthesis.cancel();
   document.querySelectorAll('.speak-btn').forEach(btn => {
     btn.classList.remove('speaking');
     btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Speak`;
   });
 
-  // Strip html markup tags before reading aloud
   const cleanText = text.replace(/<\/?[^>]+(>|$)/g, "");
-  
   currentUtterance = new SpeechSynthesisUtterance(cleanText);
-  currentUtterance.rate = 1.05; // Quick, energetic pace matching Jo's brand persona
+  currentUtterance.rate = 1.05;
   
   buttonElement.classList.add('speaking');
   buttonElement.innerHTML = `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`;
@@ -1313,7 +1297,10 @@ function toggleSpeak(text, buttonElement) {
   };
 
   window.speechSynthesis.speak(currentUtterance);
-}(function init() {
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+(function init() {
   loadSessions();
   const lastActive = loadActive();
   if (lastActive && sessions[lastActive]) {
