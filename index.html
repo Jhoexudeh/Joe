@@ -901,8 +901,11 @@
 const STORAGE_KEY = 'jo_avatar_sessions';
 const ACTIVE_KEY  = 'jo_avatar_active';
 
+// ─── SYSTEM PROMPT SETUP ──────────────────────────────────────────
+const SYSTEM_PROMPT = "Brand Mechanic Engine Profile loaded.";
+
 // ─── SESSION STATE ────────────────────────────────────────────────
-let sessions = {};          // { id: { id, title, ts, messages: [{role,content}] } }
+let sessions = {};
 let activeSessionId = null;
 let conversationHistory = [];
 let isLoading = false;
@@ -953,6 +956,7 @@ function setSessionTitle(id, firstMessage) {
 // ─── RENDER HISTORY ───────────────────────────────────────────────
 function renderHistory() {
   const container = document.getElementById('historyList');
+  if (!container) return;
   const ids = Object.keys(sessions).sort((a,b) => sessions[b].ts - sessions[a].ts);
 
   if (ids.length === 0) {
@@ -960,7 +964,6 @@ function renderHistory() {
     return;
   }
 
-  // Group by Today / Yesterday / Earlier
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yestStart  = todayStart - 86400000;
@@ -1065,8 +1068,12 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 160) + 'px';
 }
 
+// Fixed Key handler
 function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  if (e.key === 'Enter' && !e.shiftKey) { 
+    e.preventDefault(); 
+    handleSend(); 
+  }
 }
 
 async function handleSend() {
@@ -1090,22 +1097,18 @@ function askPillar(pillar) {
 async function sendMessage(text) {
   if (isLoading) return;
 
-  // Ensure active session
   if (!activeSessionId || !sessions[activeSessionId]) {
     activeSessionId = createSession();
     saveActive();
   }
 
-  // Remove empty state
   const empty = document.getElementById('emptyState');
   if (empty) empty.remove();
 
-  // Set title from first user message
   if (sessions[activeSessionId].messages.length === 0) {
     setSessionTitle(activeSessionId, text);
   }
 
-  // Add to history & render
   conversationHistory.push({ role: 'user', content: text });
   sessions[activeSessionId].messages = [...conversationHistory];
   sessions[activeSessionId].ts = Date.now();
@@ -1113,44 +1116,27 @@ async function sendMessage(text) {
   appendMessage('user', text);
   renderHistory();
 
-  // Typing indicator
   const typingId = showTyping();
   isLoading = true;
   document.getElementById('sendBtn').disabled = true;
 
- try {
-    // ⚠️ TEMPORARY MOCK FOR LOCAL TESTING (Bypasses the broken network call)
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulates 1 second of thinking
+  try {
+    // ⚠️ LOCAL TESTING EMULATOR MOCK
+    await new Promise(resolve => setTimeout(resolve, 1200)); 
     
-    removeTyping(typingId); // Turns off the loading animation dots
+    removeTyping(typingId);
     
-    const mockReply = "Engine diagnostic online! Your local UI setup is running perfectly. To get real strategic advice from your Anthropic model, you just need to move this fetch request to a secure backend file and deploy it to Vercel.";
+    const mockReply = "Diagnostic Engine operational! Your interface functions perfectly and your sessions are saving correctly. To get real strategic insights directly from Claude, link this to your Next.js backend API layout route.";
     
     conversationHistory.push({ role: 'assistant', content: mockReply });
     sessions[activeSessionId].messages = [...conversationHistory];
     saveSessions();
-    appendMessage('jo', mockReply); // Puts the text on the screen
+    appendMessage('jo', mockReply);
 
   } catch(err) {
     removeTyping(typingId);
-    appendMessage('jo', 'Something went wrong.');
+    appendMessage('jo', 'Something went wrong inside the simulation.');
     console.error(err);
-  }
-    const data = await response.json();
-    removeTyping(typingId);
-
-    if (data.content && data.content[0]) {
-      const reply = data.content[0].text;
-      conversationHistory.push({ role: 'assistant', content: reply });
-      sessions[activeSessionId].messages = [...conversationHistory];
-      saveSessions();
-      appendMessage('jo', reply);
-    } else {
-      appendMessage('jo', 'Something went wrong. Try again.');
-    }
-  } catch(err) {
-    removeTyping(typingId);
-    appendMessage('jo', 'Network error. Check your connection and try again.');
   }
 
   isLoading = false;
@@ -1160,6 +1146,7 @@ async function sendMessage(text) {
 // ─── DOM HELPERS ──────────────────────────────────────────────────
 function appendMessage(role, text) {
   const msgs = document.getElementById('messages');
+  if (!msgs) return;
   const row = document.createElement('div');
   row.className = `message-row ${role}`;
 
@@ -1167,37 +1154,14 @@ function appendMessage(role, text) {
   avatar.className = `msg-avatar ${role}`;
   avatar.textContent = role === 'jo' ? 'JO' : 'YOU';
 
-  const msgContent = document.createElement('div');
-  msgContent.style.cssText = 'display:flex;flex-direction:column;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start');
-
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.innerHTML = formatText(text);
-  msgContent.appendChild(bubble);
-
-  if (role === 'jo') {
-    const speakBtn = document.createElement('button');
-    speakBtn.className = 'speak-btn';
-    speakBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Listen`;
-    speakBtn.onclick = () => speakText(bubble.innerHTML, speakBtn);
-    msgContent.appendChild(speakBtn);
-  }
+  bubble.innerHTML = text;
 
   row.appendChild(avatar);
-  row.appendChild(msgContent);
+  row.appendChild(bubble);
   msgs.appendChild(row);
   msgs.scrollTop = msgs.scrollHeight;
-}
-
-function formatText(text) {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-    .replace(/^/, '<p>')
-    .replace(/$/, '</p>')
-    .replace(/<p><\/p>/g, '');
 }
 
 function showTyping() {
@@ -1207,8 +1171,10 @@ function showTyping() {
   row.className = 'thinking-row';
   row.id = id;
   row.innerHTML = `<div class="msg-avatar jo">JO</div><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
-  msgs.appendChild(row);
-  msgs.scrollTop = msgs.scrollHeight;
+  if (msgs) {
+    msgs.appendChild(row);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
   return id;
 }
 
@@ -1216,187 +1182,6 @@ function removeTyping(id) {
   const el = document.getElementById(id);
   if (el) el.remove();
 }
-
-// ─── VOICE INPUT ──────────────────────────────────────────────────
-let recognition = null;
-let isRecording = false;
-let voiceTranscriptBuffer = '';
-
-function toggleVoice() {
-  if (isRecording) stopRecording(); else startRecording();
-}
-
-function startRecording() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { alert('Voice input is not supported in this environment. Try opening this file directly in Chrome or Edge.'); return; }
-  recognition = new SR();
-  recognition.lang = 'en-NG';
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  voiceTranscriptBuffer = '';
-  isRecording = true;
-  document.getElementById('voiceOverlay').classList.add('active');
-  document.getElementById('voiceOrb').classList.add('active');
-  document.getElementById('voiceStatus').textContent = 'Listening...';
-  document.getElementById('voiceTranscript').textContent = "Start speaking — I'm all ears.";
-  document.getElementById('micBtn').classList.add('recording');
-
-  recognition.onresult = (e) => {
-    let interim = '', final = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += t; else interim += t;
-    }
-    voiceTranscriptBuffer += final;
-    document.getElementById('voiceTranscript').textContent = (voiceTranscriptBuffer + interim) || "Start speaking — I'm all ears.";
-  };
-
-  recognition.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'permission-denied') {
-      isRecording = false;
-      closeVoiceOverlay();
-      showMicBlockedMessage();
-    } else if (e.error === 'no-speech') {
-      document.getElementById('voiceStatus').textContent = 'No speech detected. Try again.';
-    } else {
-      document.getElementById('voiceStatus').textContent = 'Error: ' + e.error;
-    }
-  };
-
-  recognition.onend = () => {
-    if (isRecording) {
-      const text = voiceTranscriptBuffer.trim();
-      closeVoiceOverlay();
-      if (text) { document.getElementById('inputBox').value = text; autoResize(document.getElementById('inputBox')); setTimeout(() => handleSend(), 200); }
-    }
-  };
-
-  recognition.start();
-}
-
-function stopRecording() {
-  isRecording = false;
-  if (recognition) recognition.stop();
-  closeVoiceOverlay();
-  const text = voiceTranscriptBuffer.trim();
-  if (text) { document.getElementById('inputBox').value = text; autoResize(document.getElementById('inputBox')); setTimeout(() => handleSend(), 200); }
-}
-
-function cancelVoice() {
-  isRecording = false;
-  if (recognition) { recognition.abort(); recognition = null; }
-  voiceTranscriptBuffer = '';
-  closeVoiceOverlay();
-}
-
-function closeVoiceOverlay() {
-  document.getElementById('voiceOverlay').classList.remove('active');
-  document.getElementById('voiceOrb').classList.remove('active');
-  document.getElementById('micBtn').classList.remove('recording');
-  isRecording = false;
-}
-
-function showMicBlockedMessage() {
-  // Show a non-crashing inline notice in the chat
-  const msgs = document.getElementById('messages');
-  const empty = document.getElementById('emptyState');
-  if (empty) empty.remove();
-  const notice = document.createElement('div');
-  notice.style.cssText = 'max-width:560px;margin:8px auto 16px;padding:12px 18px;background:rgba(232,0,13,0.08);border:1px solid rgba(232,0,13,0.2);border-radius:8px;font-size:12px;color:#DEDEDA;line-height:1.7;text-align:center;font-family:DM Sans,sans-serif;';
-  notice.innerHTML = '<strong style="color:#F5F5F0;">🎤 Mic blocked by sandbox</strong><br>Voice input doesn't work inside Claude's artifact preview. <strong>Download the HTML file</strong> and open it in Chrome for full voice support — mic input, live transcription, and text-to-speech all work there.';
-  msgs.appendChild(notice);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-// ─── VOICE OUTPUT ─────────────────────────────────────────────────
-let currentUtterance = null;
-let isSpeaking = false;
-
-function speakText(text, btn) {
-  if (!window.speechSynthesis) {
-    alert('Text-to-speech is not supported in this environment. Try opening this file in Chrome directly.');
-    return;
-  }
-  if (isSpeaking) {
-    window.speechSynthesis.cancel();
-    isSpeaking = false;
-    document.querySelectorAll('.speak-btn').forEach(b => { b.classList.remove('speaking'); b.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Listen`; });
-    if (currentUtterance && btn.dataset.text === currentUtterance.text) return;
-  }
-  const clean = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-  const utterance = new SpeechSynthesisUtterance(clean);
-  currentUtterance = utterance;
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Google US English') || v.name.includes('Daniel') || (v.lang === 'en-US' && v.name.includes('Male'))) || voices.find(v => v.lang.startsWith('en')) || voices[0];
-  if (preferred) utterance.voice = preferred;
-  utterance.rate = 0.95; utterance.pitch = 0.95; utterance.volume = 1;
-  utterance.onstart = () => { isSpeaking = true; btn.classList.add('speaking'); btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`; };
-  const resetBtn = () => { isSpeaking = false; btn.classList.remove('speaking'); btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> Listen`; };
-  utterance.onend = resetBtn; utterance.onerror = resetBtn;
-  btn.dataset.text = clean;
-  window.speechSynthesis.speak(utterance);
-}
-
-if (window.speechSynthesis) { window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices(); }
-
-// ─── SYSTEM PROMPT ────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are Jo — the founder of BrandMechanic, a brand strategy and productization consultancy targeting freelancers, creatives, and SMEs, primarily in the Nigerian market.
-
-## Who You Are
-- Your full name is Joseph. You go by Jo. Your publishing identity is BrandMechanic.
-- You are a former AI strategist for ecommerce businesses who pivoted to helping others monetize their skills and knowledge using AI.
-- You built the Brand Mechanic Method™ — a 5-step framework: Diagnose, Disassemble, Realign, Rebuild, Optimize.
-- You are also building Hookwise — an AI-powered Content Decision Engine that tells creators and SMEs exactly what to create, why it will work, and when.
-- You are deeply embedded in the Nigerian creative and entrepreneurial ecosystem.
-
-## Your Voice & Personality
-- Precise. Direct. Mechanical. Warm authority.
-- Short sentences. Declarative. Confident.
-- No fluff. No hedging. No vague advice. Diagnose, fix, engineer.
-- Use mechanical metaphors: diagnose, fix, tune, engineer, build, optimize, overhaul.
-- Never say "I think" or "in my opinion" — just state it. Own the position.
-- If a 16-year-old can't understand it, rewrite it. Clarity beats cleverness.
-- Specific over general: use numbers, timeframes, names.
-- Active voice only. No passive constructions.
-
-## Your Core Frameworks
-**The 3 Pillars:**
-1. POSITIONING — Can the brand explain what it does in one sentence a stranger understands?
-2. PACKAGING — Is the expertise turned into structured, named, priced offers selling outcomes not hours?
-3. MONETIZATION — Is there a revenue architecture with multiple income streams?
-
-**The Brand Mechanic Method™ (5 steps):** Diagnose → Disassemble → Realign → Rebuild → Optimize
-
-**The 6-Tier Offer Ladder:**
-- Tier 1: Free content (LinkedIn, Instagram)
-- Tier 2: Brand Mechanic Diagnostic™ (lead magnet, free)
-- Tier 3: Brand Mechanic Starter Kit™ ($27–$97)
-- Tier 4: Brand Tune-Up Session™ ($500–$2,500)
-- Tier 5: Brand Overhaul™ ($5,000–$15,000)
-- Tier 6: Brand Mechanic Academy™ ($497–$1,997)
-
-## Your Market Context
-- You serve Nigerian creatives, freelancers, designers, consultants, and SMEs.
-- Reference Nigerian platforms naturally: Selar.co, Paystack, WhatsApp, Instagram, LinkedIn.
-- You understand the hustle culture, pricing psychology, and monetization barriers in the Nigerian creative economy.
-- You reference naira (₦) when talking about Nigerian market pricing, but also use USD for global benchmarks.
-
-## Content Rules
-- SAY: "Fix your positioning" — DON'T SAY: "Optimize your brand presence"
-- SAY: "This is what's broken" — DON'T SAY: "You might want to consider"
-- SAY: "Here's the exact framework" — DON'T SAY: "There are many approaches"
-- Teach first, sell second (80% value, 20% direction toward offers)
-- Always use named frameworks: "The Brand Mechanic Method™", not "my approach"
-- When diagnosing: run the 3 pillars check first, always
-- Most pricing problems are actually packaging problems — diagnose before prescribing
-
-## Format Rules
-- Keep responses focused and punchy
-- Use bold for key terms and framework names
-- Use short paragraphs (2–3 lines max)
-- If listing steps, number them clearly
-- End with one clear next action where relevant
-- Never give vague, general advice — be specific and mechanical`;
 
 // ─── INIT ─────────────────────────────────────────────────────────
 (function init() {
