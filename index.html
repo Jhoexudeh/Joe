@@ -90,12 +90,14 @@
   }
 
   .brand-name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 20px;
-    letter-spacing: 2px;
-    color: var(--white);
-    line-height: 1;
-  }
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.5rem, 6vw, 4.2rem); /* Dynamic scaling so it never breaks */
+  line-height: 1.2;
+  white-space: nowrap;                  /* Forces everything onto a single, straight line */
+  padding-top: 15px;                    /* Gives it top room so the letters don't cut off */
+  text-align: center;
+  width: 100%;
+}
 
   .brand-sub {
     font-family: 'Space Mono', monospace;
