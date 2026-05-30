@@ -1117,18 +1117,24 @@ async function sendMessage(text) {
   isLoading = true;
   document.getElementById('sendBtn').disabled = true;
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: SYSTEM_PROMPT,
-        messages: conversationHistory
-      })
-    });
+ try {
+    // ⚠️ TEMPORARY MOCK FOR LOCAL TESTING (Bypasses the broken network call)
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulates 1 second of thinking
+    
+    removeTyping(typingId); // Turns off the loading animation dots
+    
+    const mockReply = "Engine diagnostic online! Your local UI setup is running perfectly. To get real strategic advice from your Anthropic model, you just need to move this fetch request to a secure backend file and deploy it to Vercel.";
+    
+    conversationHistory.push({ role: 'assistant', content: mockReply });
+    sessions[activeSessionId].messages = [...conversationHistory];
+    saveSessions();
+    appendMessage('jo', mockReply); // Puts the text on the screen
 
+  } catch(err) {
+    removeTyping(typingId);
+    appendMessage('jo', 'Something went wrong.');
+    console.error(err);
+  }
     const data = await response.json();
     removeTyping(typingId);
 
